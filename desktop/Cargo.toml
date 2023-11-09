@@ -1,0 +1,28 @@
+[package]
+name = "mobile"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "mobile"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+triangles3bevy = { path = ".." } # ToDo
+bevy = { version = "0.12", default-features = false }
+
+[package.metadata.android]
+package = "me.nikl.bevygame"  # ToDo
+apk_name = "triangles3"  # ToDo same as GAME_OSX_APP_NAME in release workflow
+assets = "../assets"
+strip = "strip"
+resources = "../build/android/res"
+build_targets = ["aarch64-linux-android"]
+
+[package.metadata.android.sdk]
+target_sdk_version = 31
+
+[package.metadata.android.application]
+icon = "@mipmap/icon"
+label = "Triangles 3" # ToDo
