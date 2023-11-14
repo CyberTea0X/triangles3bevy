@@ -27,7 +27,7 @@ fn main() {
                 }),
                 ..default()
             }),
-            GamePlugin,
+            GamePlugin::default(),
         ))
         .add_systems(Update, close_on_esc)
         .insert_resource(DataPath(internal_data_path().unwrap()))
