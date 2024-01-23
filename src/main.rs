@@ -7,12 +7,12 @@ use bevy::window::{close_on_esc, WindowMode};
 use triangles3bevy::{DataPath, GamePlugin}; // ToDo: Replace bevy_game with your new crate name.
 
 fn internal_data_path() -> io::Result<PathBuf> {
-    if let Err(e) = fs::create_dir("./assets") {
+    if let Err(e) = fs::create_dir("./assets/dynamic") {
         if e.kind() != io::ErrorKind::AlreadyExists {
             return Err(e);
         }
     }
-    Ok(PathBuf::from_str("./assets").unwrap())
+    Ok(PathBuf::from_str("./assets/dynamic").unwrap())
 }
 
 #[bevy_main]

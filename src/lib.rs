@@ -1,7 +1,11 @@
+use bevy::utils::HashMap;
+use bevy_asset_loader::asset_collection::AssetCollection;
+use bevy_asset_loader::loading_state::{LoadingState, LoadingStateAppExt};
 use radial_background::create_radial_gradient;
-use std::{fs, path::PathBuf};
+use rand::Rng;
+use std::{fs, path::PathBuf, str::FromStr};
 
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{asset, prelude::*, window::PrimaryWindow};
 pub struct GamePlugin {
     default_resources: bool,
 }
@@ -17,8 +21,23 @@ impl Default for GamePlugin {
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, (setup, spawn_field).chain())
+            .add_state::<GameState>()
+            .add_loading_state(
+                LoadingState::new(GameState::AssetLoading).continue_to_state(GameState::Next),
+            )
+            .add_collection_to_loading_state::<_, MyAssets>(GameState::AssetLoading)
             .add_systems(PostStartup, (calculate_cells).chain())
-            .add_systems(Update, (rotate_field.run_if(run_once()), spawn_squares));
+            .add_systems(
+                Update,
+                (
+                    // rotate_field.run_if(run_once()),
+                    spawn_squares,
+                ),
+            )
+            .add_systems(
+                OnExit(GameState::AssetLoading),
+                spawn_triangles.run_if(run_once()),
+            );
 
         if self.default_resources {
             let gradient = GradientConfig {
@@ -35,9 +54,61 @@ impl Plugin for GamePlugin {
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
+enum GameState {
+    #[default]
+    AssetLoading,
+    Next,
+}
+
+#[derive(AssetCollection, Resource)]
+struct MyAssets {
+    #[asset(path = "triangles/tRed.png")]
+    t_red: Handle<Image>,
+    #[asset(path = "triangles/tGreen.png")]
+    t_green: Handle<Image>,
+    #[asset(path = "triangles/tBlue.png")]
+    t_blue: Handle<Image>,
+    #[asset(path = "triangles/tOrange.png")]
+    t_orange: Handle<Image>,
+    #[asset(path = "triangles/tPurple.png")]
+    t_purple: Handle<Image>,
+    #[asset(path = "triangles/tTeal.png")]
+    t_teal: Handle<Image>,
+    #[asset(path = "triangles/tYellow.png")]
+    t_yellow: Handle<Image>,
+}
+
+impl MyAssets {
+    pub fn from_tcolor(&self, color: TriangleColor) -> Handle<Image> {
+        match color {
+            TriangleColor::Red => self.t_red.clone(),
+            TriangleColor::Green => self.t_green.clone(),
+            TriangleColor::Blue => self.t_blue.clone(),
+            TriangleColor::Orange => self.t_orange.clone(),
+            TriangleColor::Purple => self.t_purple.clone(),
+            TriangleColor::Teal => self.t_teal.clone(),
+            TriangleColor::Yellow => self.t_yellow.clone(),
+        }
+    }
+}
+
 // Path to the data directory. There should be stored all mutable data
 #[derive(Resource, Deref, DerefMut)]
 pub struct DataPath(pub PathBuf);
+
+#[derive(Resource)]
+pub struct Config {
+    field_scale: u32,
+    square_bg: Color,
+    gradient: GradientConfig,
+}
+
+pub struct GradientConfig {
+    color1: Color,
+    color2: Color,
+    radius: f32,
+}
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Field {
@@ -67,8 +138,8 @@ impl Field {
     }
 }
 
-#[derive(Component, Debug, Clone, Copy)]
-pub struct Square;
+#[derive(Component)]
+pub struct FieldBackground;
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Cell {
@@ -83,21 +154,47 @@ pub enum TriangleCell {
     Top,
 }
 
-#[derive(Resource)]
-pub struct Config {
-    field_scale: u32,
-    square_bg: Color,
-    gradient: GradientConfig,
+#[derive(Clone, Copy, Debug)]
+pub enum SquareOrientation {
+    Horizontal,
+    Vertical,
 }
 
-pub struct GradientConfig {
-    color1: Color,
-    color2: Color,
-    radius: f32,
+#[derive(Component, Debug, Clone, Copy)]
+pub struct Square {
+    orientation: SquareOrientation,
 }
 
-#[derive(Component)]
-pub struct FieldBackground;
+// All possible colors of the triangle
+#[derive(Debug, Clone, Copy)]
+pub enum TriangleColor {
+    Red,
+    Green,
+    Blue,
+    Orange,
+    Purple,
+    Teal,
+    Yellow,
+}
+
+impl TriangleColor {
+    pub fn asset_path(&self) -> PathBuf {
+        match self {
+            Self::Red => PathBuf::from_str("tRed.png").unwrap(),
+            Self::Green => PathBuf::from_str("tGreen.png").unwrap(),
+            Self::Blue => PathBuf::from_str("tBlue.png").unwrap(),
+            Self::Orange => PathBuf::from_str("tOrange.png").unwrap(),
+            Self::Purple => PathBuf::from_str("tPurple.png").unwrap(),
+            Self::Teal => PathBuf::from_str("tTeal.png").unwrap(),
+            Self::Yellow => PathBuf::from_str("tYellow.png").unwrap(),
+        }
+    }
+}
+
+#[derive(Component, Debug, Clone, Copy)]
+pub struct Triangle {
+    color: TriangleColor,
+}
 
 fn spawn_field(
     mut commands: Commands,
@@ -145,10 +242,15 @@ fn calculate_cells(mut commands: Commands, field: Query<&Field>) {
             if (i == 0 || i == field_scale - 1) && (j == 0 || j == field_scale - 1) {
                 continue;
             }
+            // /** Формула выбирает элементы по диагонали и проверяет на чётность */
+            //const getSplit = (i: number, s: number): SquareSplit => (((i + Math.floor(i / s - 1)) % 2 != 0) ? 0 : 1)
+
             commands.spawn((
                 Transform::from_translation(Vec3::new(x_pos, y_pos, 2.0)),
                 Cell { id: i as u32 },
-                Square,
+                Square {
+                    orientation: SquareOrientation::Horizontal,
+                },
             ));
         }
     }
@@ -175,6 +277,40 @@ fn spawn_squares(
             })
             .set_parent(field_id);
         commands.entity(field_id).add_child(id);
+    }
+}
+
+fn spawn_triangles(
+    mut commands: Commands,
+    my_assets: Res<MyAssets>,
+    squares: Query<(Entity, &Transform, &Square)>,
+) {
+    let mut rng = rand::thread_rng();
+    for (id, transform, square) in &squares {
+        let color = match rng.gen_range(0..4) {
+            0 => TriangleColor::Red,
+            1 => TriangleColor::Green,
+            2 => TriangleColor::Blue,
+            _ => TriangleColor::Teal,
+        };
+        let mut entity = match square.orientation {
+            _ => {
+                let texture_handle = my_assets.from_tcolor(color);
+                commands.spawn((
+                    Triangle { color },
+                    SpriteBundle {
+                        texture: texture_handle,
+                        transform: transform
+                            .clone()
+                            .with_rotation(Quat::from_rotation_z(90f32.to_radians())),
+                        ..default()
+                    },
+                ))
+            }
+        };
+        entity.set_parent(id);
+        let triangle_id = entity.id();
+        commands.entity(id).add_child(triangle_id);
     }
 }
 /// rotates the parent, which will result in the child also rotating

@@ -19,6 +19,8 @@ assets = "../assets"
 strip = "strip"
 resources = "../build/android/res"
 build_targets = ["aarch64-linux-android"]
+#build_targets = ["aarch64-linux-android", "x86_64-linux-android"]
+#build_targets = ["aarch64-linux-android", "armv7-linux-androideabi"]
 
 [package.metadata.android.sdk]
 target_sdk_version = 31
